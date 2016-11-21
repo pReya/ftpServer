@@ -29,9 +29,11 @@ public class Server
                 //
                 
                 Socket client = welcomeSocket.accept();
+                client.setSoTimeout(60*1000);
                 Worker w = new Worker(client);
                 w.start();
                 System.out.println("Connection received, worker started");
+                w.join();
             }
         }
         catch (Exception e)

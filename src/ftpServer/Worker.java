@@ -27,12 +27,14 @@ public class Worker extends Thread
     // control connection
     private Socket client;
     private PrintWriter out;
+    private PrintWriter dataOutWriter;
     private BufferedReader in;
 
 
     // data Connection
     private Socket dataConnection;
     private OutputStream dataOut;
+    private int dataPort = 1026;
 
 
     // Is anyone logged in?
@@ -113,32 +115,55 @@ public class Worker extends Thread
             case "USER":                
                 handleUser(args);
                 break;
+                
             case "PASS":
                 handlePass(args);
                 break;
+                
             case "CWD":
                 handleCwd(args);
                 break;
+                
             case "NLST":
+                handleNlst(args);
                 break;
+                
             case "PWD":
                 handlePwd();
                 break;
+                
             case "QUIT":
                 handleQuit();
                 break;
+                
             case "PASV":
                 handlePasv();
                 break;
+            
+            case "EPSV":
+                handleEpsv();
+                break;
+                
             case "SYST":
                 handleSyst();
                 break;
+                
             case "FEAT":
                 handleFeat();
                 break;
+                
             case "PORT":
                 handlePort(args);
                 break;
+                
+            case "EPRT":
+                handlePort(parseExtendedArguments(args));
+                break;
+                
+            case "TEST":
+                sendDataMsgToClient("abc");
+                break;
+                
             default:
                 sendMsgToClient("501 Unknown command");
                 break;
@@ -197,13 +222,16 @@ public class Worker extends Thread
     }
     
     
-    private void handleNlist(String args) throws Exception
+    private void handleNlst(String args)
     {
+        openDataConnection(dataPort);
         String[] dirContent = nlstHelper(args);
+
         for (int i = 0; i < dirContent.length; i++)
         {
-            sendMsgToClient(dirContent[i]);
+            sendDataMsgToClient(dirContent[i]);
         }
+        closeDataConnection();
         
         
     }
@@ -216,7 +244,7 @@ public class Worker extends Thread
     // name is that of a file, then return an array containing only one element
     // (this name). If the file or directory does not exist, return nul.
     //
-    private String[]  nlstHelper(String args) throws IOException
+    private String[]  nlstHelper(String args)
     {
         //
         // Construct the name of the directory to list.
@@ -263,7 +291,9 @@ public class Worker extends Thread
         int p2 = Integer.parseInt(st.nextToken());
         int p = p1*256 + p2;
         
-        openDataConnection(hostName, p);
+        //openDataConnection(hostName, p);
+        
+        System.out.println("Data connection established");
     }
 
     
@@ -285,12 +315,18 @@ public class Worker extends Thread
         out.println(msg);
     }
     
-    private void openDataConnection(String host, int port)
+    private void sendDataMsgToClient(String msg)
+    {
+        dataOutWriter.println(msg);
+    }
+    
+    private void openDataConnection(int port)
     {
         try
         {
-            dataConnection = new Socket(host, port);
+            dataConnection = new ServerSocket(port).accept();
             dataOut = dataConnection.getOutputStream();
+            dataOutWriter = new PrintWriter(dataOut, true);
         } catch (IOException e)
         {
             // TODO Auto-generated catch block
@@ -300,30 +336,38 @@ public class Worker extends Thread
     
     private void handlePasv()
     {
-        String myIp = client.getLocalAddress().getHostAddress();
+        // Using fixed IP for connections on the same machine
+        String myIp = "0.0.0.0";
         StringTokenizer st = new StringTokenizer(myIp, ".");
-        int port = 1026;
-        int p1 = port/256;
-        int p2 = port - p1;
         
-        receiveDataConnection(port);
+        int p1 = dataPort/256;
+        int p2 = dataPort%256;
         
-        sendMsgToClient("227 Entering Passive Mode ("+ st.nextToken() +"," + st.nextToken() + "," + st.nextToken() + "," + st.nextToken() + "," + p1 + "," + p2 +")");
+        sendMsgToClient("227 Entering Passive Mode ("+ st.nextToken() +"," + st.nextToken() + "," + st.nextToken() + "," + st.nextToken() + "," + p1 + "," + p2 +")"); 
 
     }
     
-    private void receiveDataConnection(int port)
+    private void handleEpsv()
+    {
+        
+        sendMsgToClient("229 Entering Extended Passive Mode (|||" + dataPort + "|)"); 
+
+    }
+    
+    
+    private void closeDataConnection()
     {
         try
         {
-            ServerSocket data = new ServerSocket(port);
-            dataConnection = data.accept();
-            dataOut = dataConnection.getOutputStream();
+            dataConnection.close();
+            dataConnection = null;
+            dataOut = null;
         } catch (IOException e)
         {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+        
     }
     
     private void handleUser(String username)
@@ -349,7 +393,7 @@ public class Worker extends Thread
         {
             // no password is needed
             currentUserStatus = userStatus.LOGGEDIN;
-            sendMsgToClient("230 Welcome to HKUST");
+            sendMsgToClient("230-Welcome to HKUST");
             sendMsgToClient("230 Anonymous user logged in");
         }
         else if (currentUserStatus == userStatus.LOGGEDIN)
@@ -377,6 +421,25 @@ public class Worker extends Thread
     {
         sendMsgToClient("211-Extensions supported:");
         sendMsgToClient("211 END");
+    }
+    
+    private void handleRetr()
+    {
+        sendMsgToClient("150 Opening ASCII mode data connection");
+        
+    }
+    
+    private String parseExtendedArguments(String extArg)
+    {
+        StringTokenizer st = new StringTokenizer(extArg, "|");
+        st.nextToken();
+        String ipAddress = st.nextToken(".") + "," + st.nextToken() + "," + st.nextToken() + "," + st.nextToken();
+        int port = Integer.parseInt(st.nextToken("|"));
+        int p1 = port/256;
+        int p2 = port%256;
+         
+        return ipAddress + "," + p1 + "," + p2;
+        
     }
 
 }

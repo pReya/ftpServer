@@ -1,16 +1,13 @@
 package ftpServer;
 
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.StringTokenizer;
 
 public class Worker extends Thread
 {
@@ -27,13 +24,12 @@ public class Worker extends Thread
     // control connection
     private Socket client;
     private PrintWriter out;
-    private PrintWriter dataOutWriter;
     private BufferedReader in;
 
 
     // data Connection
     private Socket dataConnection;
-    private OutputStream dataOut;
+    private PrintWriter dataOutWriter;
     private int dataPort = 1026;
 
 
@@ -90,7 +86,7 @@ public class Worker extends Thread
         }
         catch (Exception e)
         {
-            
+            e.printStackTrace();
         }
         
     }
@@ -122,6 +118,10 @@ public class Worker extends Thread
                 
             case "CWD":
                 handleCwd(args);
+                break;
+                
+            case "LIST":
+                handleNlst(args);
                 break;
                 
             case "NLST":
@@ -224,13 +224,15 @@ public class Worker extends Thread
     
     private void handleNlst(String args)
     {
-        openDataConnection(dataPort);
+        sendMsgToClient("125 Opening ASCII mode data connection for file list.");
         String[] dirContent = nlstHelper(args);
 
         for (int i = 0; i < dirContent.length; i++)
         {
             sendDataMsgToClient(dirContent[i]);
         }
+        
+        sendMsgToClient("226 Transfer complete.");
         closeDataConnection();
         
         
@@ -244,7 +246,7 @@ public class Worker extends Thread
     // name is that of a file, then return an array containing only one element
     // (this name). If the file or directory does not exist, return nul.
     //
-    private String[]  nlstHelper(String args)
+    private String[] nlstHelper(String args)
     {
         //
         // Construct the name of the directory to list.
@@ -283,15 +285,16 @@ public class Worker extends Thread
         // Extract the host name (well, really its IP address) and the port number
         // from the arguments.
         //
-        StringTokenizer st = new StringTokenizer(args, ",");
-        String hostName = st.nextToken() + "." + st.nextToken() + "." + 
-                          st.nextToken() + "." + st.nextToken();
+        String[] stringSplit = args.split(",");
+        String hostName = stringSplit[0] + "." + stringSplit[1] + "." + 
+                stringSplit[2] + "." + stringSplit[3];
     
-        int p1 = Integer.parseInt(st.nextToken());
-        int p2 = Integer.parseInt(st.nextToken());
+        int p1 = Integer.parseInt(stringSplit[4]);
+        int p2 = Integer.parseInt(stringSplit[5]);
         int p = p1*256 + p2;
         
-        //openDataConnection(hostName, p);
+        connectToClientDataSocket(hostName, p);
+        sendMsgToClient("200 Command OK Test");
         
         System.out.println("Data connection established");
     }
@@ -325,8 +328,8 @@ public class Worker extends Thread
         try
         {
             dataConnection = new ServerSocket(port).accept();
-            dataOut = dataConnection.getOutputStream();
-            dataOutWriter = new PrintWriter(dataOut, true);
+            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            
         } catch (IOException e)
         {
             // TODO Auto-generated catch block
@@ -338,12 +341,14 @@ public class Worker extends Thread
     {
         // Using fixed IP for connections on the same machine
         String myIp = "0.0.0.0";
-        StringTokenizer st = new StringTokenizer(myIp, ".");
+        String myIpSplit[] = myIp.split("\\.");
         
         int p1 = dataPort/256;
         int p2 = dataPort%256;
         
-        sendMsgToClient("227 Entering Passive Mode ("+ st.nextToken() +"," + st.nextToken() + "," + st.nextToken() + "," + st.nextToken() + "," + p1 + "," + p2 +")"); 
+        openDataConnection(dataPort);
+        
+        sendMsgToClient("227 Entering Passive Mode ("+ myIpSplit[0] +"," + myIpSplit[1] + "," + myIpSplit[2] + "," + myIpSplit[3] + "," + p1 + "," + p2 +")"); 
 
     }
     
@@ -361,7 +366,6 @@ public class Worker extends Thread
         {
             dataConnection.close();
             dataConnection = null;
-            dataOut = null;
         } catch (IOException e)
         {
             // TODO Auto-generated catch block
@@ -431,14 +435,28 @@ public class Worker extends Thread
     
     private String parseExtendedArguments(String extArg)
     {
-        StringTokenizer st = new StringTokenizer(extArg, "|");
-        st.nextToken();
-        String ipAddress = st.nextToken(".") + "," + st.nextToken() + "," + st.nextToken() + "," + st.nextToken();
-        int port = Integer.parseInt(st.nextToken("|"));
+        String[] splitArgs = extArg.split("\\|");
+        String ipAddress = splitArgs[2].replace('.', ',');
+        int port = Integer.parseInt(splitArgs[3]);
         int p1 = port/256;
         int p2 = port%256;
          
         return ipAddress + "," + p1 + "," + p2;
+        
+    }
+    
+    private void connectToClientDataSocket(String ipAddress, int port)
+    {
+        try
+        {
+            dataConnection = new Socket(ipAddress, port);
+            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+        } catch (IOException e)
+        {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        
         
     }
 

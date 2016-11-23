@@ -28,6 +28,7 @@ public class Worker extends Thread
 
 
     // data Connection
+    private ServerSocket dataSocket;
     private Socket dataConnection;
     private PrintWriter dataOutWriter;
     private int dataPort = 1026;
@@ -171,6 +172,14 @@ public class Worker extends Thread
             
             case "RETR":
                 handleRetr();
+                break;
+                
+            case "MKD":
+                handleMkd(args);
+                break;
+                
+            case "RMD":
+                handleRmd(args);
                 break;
                 
             default:
@@ -363,7 +372,7 @@ public class Worker extends Thread
      */
     private void openDataConnection(int port)
     {
-        ServerSocket dataSocket = null;
+
         try
         {
             dataSocket = new ServerSocket(port);
@@ -376,21 +385,21 @@ public class Worker extends Thread
             System.out.println("Could not create data connection.");
             e.printStackTrace();
         }
-        finally
-        {
-            try
-            {
-                dataConnection.close();
-                dataSocket.close();
-            } catch (IOException e)
-            {
-                System.out.println("Could not close sockets for data connection.");
-                e.printStackTrace();
-            }
-            dataConnection = null;
-            dataOutWriter = null;
-            
-        }
+//        finally
+//        {
+//            try
+//            {
+//                dataConnection.close();
+//                dataSocket.close();
+//            } catch (IOException e)
+//            {
+//                System.out.println("Could not close sockets for data connection.");
+//                e.printStackTrace();
+//            }
+//            dataConnection = null;
+//            dataOutWriter = null;
+//            
+//        }
     }
     
     /**
@@ -439,16 +448,15 @@ public class Worker extends Thread
         // Using fixed IP for connections on the same machine
         // For usage on separate hosts, we'd need to get the local IP address from somewhere
         // Java sockets did not offer a good method for this
-        String myIp = "0.0.0.0";
+        String myIp = "127.0.0.1";
         String myIpSplit[] = myIp.split("\\.");
         
         int p1 = dataPort/256;
         int p2 = dataPort%256;
         
-        // Initiate connection (create socket) before sending it to the client
-        openDataConnection(dataPort);
+        sendMsgToClient("227 Entering Passive Mode ("+ myIpSplit[0] +"," + myIpSplit[1] + "," + myIpSplit[2] + "," + myIpSplit[3] + "," + p1 + "," + p2 +")");
         
-        sendMsgToClient("227 Entering Passive Mode ("+ myIpSplit[0] +"," + myIpSplit[1] + "," + myIpSplit[2] + "," + myIpSplit[3] + "," + p1 + "," + p2 +")"); 
+        openDataConnection(dataPort);
 
     }
     
@@ -459,34 +467,29 @@ public class Worker extends Thread
     private void handleEpsv()
     {
         sendMsgToClient("229 Entering Extended Passive Mode (|||" + dataPort + "|)");
-        
-        try
-        {
-            sleep(100);
-        } catch (InterruptedException e)
-        {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        openDataConnection(dataPort);   
-
+        openDataConnection(dataPort);  
     }
     
-    
+    /**
+     * Close previously established data connection sockets and streams
+     */
     private void closeDataConnection()
     {
         try
         {
-            dataConnection.close();
             dataOutWriter.close();
+            dataConnection.close();
+            dataSocket.close();
+           
+            System.out.println("Data connection was closed");
         } catch (IOException e)
         {
             System.out.println("Could not close data connection");
             e.printStackTrace();
         }
-        
-        dataConnection = null;
         dataOutWriter = null;
+        dataConnection = null;
+        dataSocket = null;          
     }
     
     /**
@@ -513,16 +516,21 @@ public class Worker extends Thread
     
     private void handlePass(String password)
     {
+        // User has entered a valid username and password is correct
         if (currentUserStatus == userStatus.ENTEREDUSERNAME && password.equals(validPassword))
         {
             currentUserStatus = userStatus.LOGGEDIN;
             sendMsgToClient("230-Welcome to HKUST");
             sendMsgToClient("230 User logged in successfully");  
         }
+        
+        // User is already logged in
         else if (currentUserStatus == userStatus.LOGGEDIN)
         {
             sendMsgToClient("530 User already logged in");
         }
+        
+        // Wrong password
         else
         {
             sendMsgToClient("530 Not logged in");
@@ -549,6 +557,55 @@ public class Worker extends Thread
     private void handleRetr()
     {
         sendMsgToClient("150 Opening ASCII mode data connection");
+        
+    }
+    
+    private void handleMkd(String args)
+    {
+        // Allow only alphanumeric characters
+        if (args != null && args.matches("^[a-zA-Z0-9]+$"))
+        {
+            File dir = new File(currDirectory + fileSeparator + args);
+            
+            if(!dir.mkdir())
+            {
+                sendMsgToClient("550 Failed to create new directory");
+                System.out.println("Failed to create new directory");
+            }
+            else
+            {
+                sendMsgToClient("250 Directory successfully created");
+            }
+        }
+        else
+        {
+            sendMsgToClient("550 Invalid name");
+        }
+        
+    }
+    
+    private void handleRmd(String args)
+    {  
+        String filename = currDirectory;
+        
+        if (args != null && args.matches("^[a-zA-Z0-9]+$"))
+        {
+            filename = filename + fileSeparator + args;
+        }
+    
+        // check if file exists, is directory and is not above root directory
+        File dir = new File(filename);
+    
+        if (dir.exists() && dir.isDirectory())
+        {
+            dir.delete();
+            
+            sendMsgToClient("250 Directory was successfully removed");
+        }
+        else
+        {
+            sendMsgToClient("550 Requested action not taken. File unavailable.");
+        }
         
     }
     

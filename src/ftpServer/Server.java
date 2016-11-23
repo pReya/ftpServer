@@ -1,46 +1,65 @@
 package ftpServer;
 
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
 public class Server
 {
-
-    public Server()
-    {
-        // TODO Auto-generated constructor stub
-    }
+    private int controlPort = 1025;
+    private ServerSocket welcomeSocket;
+    boolean serverRunning = true;
 
     public static void main(String[] args)
     {
+        new Server();
+    }
+
+    public Server()
+    {
         try
         {
-            int nPort = 1025;
-            ServerSocket welcomeSocket = new ServerSocket(nPort);
-
-            System.out.println("FTP Server started on port " + nPort);
-
-
-            while (true)
-            {
-                //
-                // Accept connection and start a new FTPSession object for 
-                // each one.
-                //
-                
-                Socket client = welcomeSocket.accept();
-                client.setSoTimeout(60*1000);
-                Worker w = new Worker(client);
-                w.start();
-                System.out.println("Connection received, worker started");
-                w.join();
-            }
+            welcomeSocket = new ServerSocket(controlPort);
         }
-        catch (Exception e)
+        catch (IOException e)
         {
-            e.printStackTrace();
+            System.out.println("Could not create server socket"); 
+            System.exit(-1);
+        }
+        
+        System.out.println("FTP Server started listening on port " + controlPort);
+
+
+        while (serverRunning)
+        {
+
+            try
+            {
+                Socket client = welcomeSocket.accept();
+                Worker w = new Worker(client);
+                System.out.println("New connection received. Worker was created.");
+                w.start();
+            }
+            catch (IOException e)
+            {
+                System.out.println("Exception encountered on accept");  
+                e.printStackTrace();
+            }
+            
+        }
+        try
+        {
+            welcomeSocket.close();
+            System.out.println("Server was stopped");
+            
+        } catch (IOException e)
+        {
+            System.out.println("Problem stopping server"); 
+            System.exit(-1);
         }
 
     }
+    
+    
 
 }

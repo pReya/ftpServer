@@ -16,8 +16,8 @@ public class Worker extends Thread
     }
     
     // Path information
-    private String root = "/Users/preya/Dropbox/Coding/Eclipse/ftpServer";
-    private String currDirectory;
+    private String root = "/Users/preya";
+    private String currDirectory = "/Users/preya/Dropbox";
     private String fileSeparator = "/";
 
 
@@ -33,9 +33,10 @@ public class Worker extends Thread
     private int dataPort = 1026;
 
 
-    // Is anyone logged in?
+    // user properly logged in?
     private userStatus currentUserStatus = userStatus.NOTLOGGEDIN;
-    private String validUser = "anonymous";
+    private String validUser = "comp4621";
+    private String validPassword = "network";
     
     private boolean quitCommandLoop = false;
     
@@ -47,14 +48,12 @@ public class Worker extends Thread
     {
         super();
         this.client = client;
-        root = "/Users/preya";
-        currDirectory = "/Users/preya";
     }
     
     
 
     /**
-     * run method required by Java thread model
+     * Run method required by Java thread model
      */
     public void run()
     {
@@ -67,27 +66,36 @@ public class Worker extends Thread
             // Output to client, automatically flushed after each print
             out = new PrintWriter(client.getOutputStream(), true);
             
+            // Greeting
             sendMsgToClient("220 Welcome to the COMP4621 FTP-Server");
             
-            
-            while (true)
+            // Get new command from client
+            while (!quitCommandLoop)
             {
                 executeCommand(in.readLine());
-                
-                if (quitCommandLoop)
-                {
-                    break;
-                }
             }
-            
-            client.close();
-            System.out.println("Server shut down");
-            
+                        
         }
         catch (Exception e)
         {
             e.printStackTrace();
         }
+        finally
+        { 
+            // Clean up 
+            try
+            {                    
+                in.close(); 
+                out.close(); 
+                client.close(); 
+                System.out.println("Sockets closed and worker stopped"); 
+            } 
+            catch(IOException e) 
+            { 
+                e.printStackTrace();
+                System.out.println("Could not close sockets");
+            } 
+        } 
         
     }
     
@@ -99,14 +107,15 @@ public class Worker extends Thread
      */
     private boolean executeCommand(String c) throws IOException
     {
-        // Split command and arguments
+        // split command and arguments
         int index = c.indexOf(' ');
         String command = ((index == -1)? c.toUpperCase() : (c.substring(0, index)).toUpperCase());
         String args = ((index == -1)? null : c.substring(index+1, c.length()));
 
 
         System.out.println("Command: " + command + " Args: " + args);
-
+        
+        // dispatcher mechanism for different commands
         switch(command) {
             case "USER":                
                 handleUser(args);
@@ -159,9 +168,9 @@ public class Worker extends Thread
             case "EPRT":
                 handlePort(parseExtendedArguments(args));
                 break;
-                
-            case "TEST":
-                sendDataMsgToClient("abc");
+            
+            case "RETR":
+                handleRetr();
                 break;
                 
             default:
@@ -173,18 +182,15 @@ public class Worker extends Thread
     return true;
     }
 
-    //
-    // Dealing with the CWD command.
-    //
-    // Acceptable arguments: .. OR . OR relative path name not including .. or .
-    //
+    /**
+     * Handler for CWD (change working directory) command.
+     * @param new directory
+     */
     private void handleCwd(String args)
     {
         String filename = currDirectory;
-    
-        //
-        // First the case where we need to go back up a directory.
-        //
+   
+        // go one level up (cd ..)
         if (args.equals(".."))
         {
             int ind = filename.lastIndexOf(fileSeparator);
@@ -194,20 +200,13 @@ public class Worker extends Thread
             }
         }
 
-        //
-        // Don't do anything if the user did "cd .". In the other cases,
-        // append the argument to the current directory.
-        //
+        // if argument is anything else (cd . does nothing)
         else if ((args != null) && (!args.equals(".")))
         {
             filename = filename + fileSeparator + args;
         }
     
-        //
-        // Now make sure that the specified directory exists, and doesn't
-        // attempt to go to the FTP root's parent directory.  Note how we
-        // use a "File" object to test if a file exists, is a directory, etc.
-        //
+        // check if file exists, is directory and is not above root directory
         File f = new File(filename);
     
         if (f.exists() && f.isDirectory() && (filename.length() >= root.length()))
@@ -221,46 +220,63 @@ public class Worker extends Thread
         }
     }
     
-    
+    /**
+     * Handler for NLST (Named List) command. Lists the directory content in a short format (names only)
+     * @param args
+     */
     private void handleNlst(String args)
     {
-        sendMsgToClient("125 Opening ASCII mode data connection for file list.");
-        String[] dirContent = nlstHelper(args);
-
-        for (int i = 0; i < dirContent.length; i++)
+        if (dataConnection == null || dataConnection.isClosed())
         {
-            sendDataMsgToClient(dirContent[i]);
+            sendMsgToClient("425 No data connection was established");
         }
-        
-        sendMsgToClient("226 Transfer complete.");
-        closeDataConnection();
-        
-        
-    }
+        else
+        {
+            
+            String[] dirContent = nlstHelper(args);
+            
+            if (dirContent == null)
+            {
+                sendMsgToClient("550 File does not exist.");
+            }
+            else
+            {
+                sendMsgToClient("125 Opening ASCII mode data connection for file list.");
 
-    //
-    // A helper for the NLST command. The directory name is obtained by 
-    // appending "args" to the current directory. 
-    //
-    // Return an array containing names of files in a directory. If the given
-    // name is that of a file, then return an array containing only one element
-    // (this name). If the file or directory does not exist, return nul.
-    //
+                for (int i = 0; i < dirContent.length; i++)
+                {
+                    sendDataMsgToClient(dirContent[i]);
+                }
+            
+                sendMsgToClient("226 Transfer complete.");
+                closeDataConnection();
+                
+            }
+            
+        }
+   
+    }
+    
+    /**
+     * A helper for the NLST command. The directory name is obtained by 
+     * appending "args" to the current directory
+     * @param args
+     * @return an array containing names of files in a directory. If the given
+     * name is that of a file, then return an array containing only one element
+     * (this name). If the file or directory does not exist, return nul.
+     */
     private String[] nlstHelper(String args)
     {
-        //
         // Construct the name of the directory to list.
-        //
         String filename = currDirectory;
         if (args != null)
         {
             filename = filename + fileSeparator + args;
         }
     
-        //
+
         // Now get a File object, and see if the name we got exists and is a
         // directory.
-        //
         File f = new File(filename);
             
         if (f.exists() && f.isDirectory())
@@ -279,38 +295,42 @@ public class Worker extends Thread
         }
     }
     
+    /**
+     * Handler for the PORT command.
+     * The client issues a PORT command to the server in active mode, so the
+     * server can open a data connection to the client through the given address
+     * and port number.
+     * @param The first four segments (separated by comma) are the IP address.
+     *        The last two segments encode the port number (port = seg1*256 + seg2)
+     */
     private void handlePort(String args)
     {
-        //
-        // Extract the host name (well, really its IP address) and the port number
-        // from the arguments.
-        //
+        // Extract IP address and port number from arguments
         String[] stringSplit = args.split(",");
         String hostName = stringSplit[0] + "." + stringSplit[1] + "." + 
                 stringSplit[2] + "." + stringSplit[3];
     
-        int p1 = Integer.parseInt(stringSplit[4]);
-        int p2 = Integer.parseInt(stringSplit[5]);
-        int p = p1*256 + p2;
+        int p = Integer.parseInt(stringSplit[4])*256 + Integer.parseInt(stringSplit[5]);
         
+        // Initiate data connection to client
         connectToClientDataSocket(hostName, p);
-        sendMsgToClient("200 Command OK Test");
+        sendMsgToClient("200 Command OK");
         
-        System.out.println("Data connection established");
     }
 
     
     /**
-     * Handler for PWD ftp command. Lists content of current directory.
-     * PWD = Print Working Directory
+     * Handler for PWD (Print working directory) command.
+     * Names the path of the current directory.
      */
     private void handlePwd()
     {
-        out.println("257 \"" + currDirectory + "\"");
+        sendMsgToClient("257 \"" + currDirectory + "\"");
     }
     
     /**
-     * Sends a message to the connected client. Flushing is automatically performed by the stream.
+     * Sends a message to the connected client over the control connection.
+     * Flushing is automatically performed by the stream.
      * @param msg The message that will be sent
      */
     private void sendMsgToClient(String msg)
@@ -318,44 +338,137 @@ public class Worker extends Thread
         out.println(msg);
     }
     
+    /**
+     * Send a message to the connected client over the data connection.
+     * @param msg
+     */
     private void sendDataMsgToClient(String msg)
     {
-        dataOutWriter.println(msg);
+        if (dataConnection == null || dataConnection.isClosed())
+        {
+            sendMsgToClient("425 No data connection was established");
+            System.out.println("Cannot send message, because no data connection is established");
+        }
+        else
+        {
+            dataOutWriter.println(msg);
+        }
+        
     }
     
+    /**
+     * Open a new data connection socket and wait for new incoming connection from client.
+     * Used for passive mode.
+     * @param Port on which to listen for new incoming connection
+     */
     private void openDataConnection(int port)
     {
+        ServerSocket dataSocket = null;
         try
         {
-            dataConnection = new ServerSocket(port).accept();
+            dataSocket = new ServerSocket(port);
+            dataConnection = dataSocket.accept();
             dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            System.out.println("Data connection - Passive Mode - established");
             
         } catch (IOException e)
         {
-            // TODO Auto-generated catch block
+            System.out.println("Could not create data connection.");
             e.printStackTrace();
+        }
+        finally
+        {
+            try
+            {
+                dataConnection.close();
+                dataSocket.close();
+            } catch (IOException e)
+            {
+                System.out.println("Could not close sockets for data connection.");
+                e.printStackTrace();
+            }
+            dataConnection = null;
+            dataOutWriter = null;
+            
         }
     }
     
+    /**
+     * Connect to client socket for data connection.
+     * Used for active mode.
+     * @param Client IP address to connect to
+     * @param Client port to connect to
+     */
+    private void connectToClientDataSocket(String ipAddress, int port)
+    {
+        try
+        {
+            dataConnection = new Socket(ipAddress, port);
+            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            System.out.println("Data connection - Active Mode - established");
+        } catch (IOException e)
+        {
+            System.out.println("Could not connect to client data socket");
+            e.printStackTrace();
+        }
+        finally
+        {
+            try
+            {
+                dataConnection.close();
+                dataOutWriter.close();
+            } catch (IOException e)
+            {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            dataConnection = null;
+            dataOutWriter = null;
+        }
+        
+        
+    }
+    
+    /**
+     * Handler for PASV command which initiates the passive mode.
+     * In passive mode the client initiates the data connection to the server.
+     * In active mode the server initiates the data connection to the client.
+     */
     private void handlePasv()
     {
         // Using fixed IP for connections on the same machine
+        // For usage on separate hosts, we'd need to get the local IP address from somewhere
+        // Java sockets did not offer a good method for this
         String myIp = "0.0.0.0";
         String myIpSplit[] = myIp.split("\\.");
         
         int p1 = dataPort/256;
         int p2 = dataPort%256;
         
+        // Initiate connection (create socket) before sending it to the client
         openDataConnection(dataPort);
         
         sendMsgToClient("227 Entering Passive Mode ("+ myIpSplit[0] +"," + myIpSplit[1] + "," + myIpSplit[2] + "," + myIpSplit[3] + "," + p1 + "," + p2 +")"); 
 
     }
     
+    /**
+     * Handler for EPSV command which initiates extended passive mode.
+     * Similar to PASV but for newer clients (IPv6 support is possible but not implemented here).
+     */
     private void handleEpsv()
     {
+        sendMsgToClient("229 Entering Extended Passive Mode (|||" + dataPort + "|)");
         
-        sendMsgToClient("229 Entering Extended Passive Mode (|||" + dataPort + "|)"); 
+        try
+        {
+            sleep(100);
+        } catch (InterruptedException e)
+        {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        openDataConnection(dataPort);   
 
     }
     
@@ -365,20 +478,27 @@ public class Worker extends Thread
         try
         {
             dataConnection.close();
-            dataConnection = null;
+            dataOutWriter.close();
         } catch (IOException e)
         {
-            // TODO Auto-generated catch block
+            System.out.println("Could not close data connection");
             e.printStackTrace();
         }
         
+        dataConnection = null;
+        dataOutWriter = null;
     }
     
+    /**
+     * Handler for USER command.
+     * User identifies the client.
+     * @param username
+     */
     private void handleUser(String username)
     {
         if (username.toLowerCase().equals(validUser))
         {
-            sendMsgToClient("331 Anonymous access allowed");
+            sendMsgToClient("331 User name okay, need password");
             currentUserStatus = userStatus.ENTEREDUSERNAME;
         }
         else if (currentUserStatus == userStatus.LOGGEDIN)
@@ -393,12 +513,11 @@ public class Worker extends Thread
     
     private void handlePass(String password)
     {
-        if (currentUserStatus == userStatus.ENTEREDUSERNAME)
+        if (currentUserStatus == userStatus.ENTEREDUSERNAME && password.equals(validPassword))
         {
-            // no password is needed
             currentUserStatus = userStatus.LOGGEDIN;
             sendMsgToClient("230-Welcome to HKUST");
-            sendMsgToClient("230 Anonymous user logged in");
+            sendMsgToClient("230 User logged in successfully");  
         }
         else if (currentUserStatus == userStatus.LOGGEDIN)
         {
@@ -445,19 +564,6 @@ public class Worker extends Thread
         
     }
     
-    private void connectToClientDataSocket(String ipAddress, int port)
-    {
-        try
-        {
-            dataConnection = new Socket(ipAddress, port);
-            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-        } catch (IOException e)
-        {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        
-        
-    }
+    
 
 }

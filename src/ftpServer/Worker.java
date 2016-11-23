@@ -1,7 +1,11 @@
 package ftpServer;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -11,6 +15,11 @@ import java.net.Socket;
 
 public class Worker extends Thread
 {
+    
+    private enum transferType {
+        ASCII, BINARY
+    }
+    
     private enum userStatus {
         NOTLOGGEDIN, ENTEREDUSERNAME, LOGGEDIN
     }
@@ -32,6 +41,7 @@ public class Worker extends Thread
     private Socket dataConnection;
     private PrintWriter dataOutWriter;
     private int dataPort = 1026;
+    private transferType transferMode = transferType.ASCII;
 
 
     // user properly logged in?
@@ -171,7 +181,7 @@ public class Worker extends Thread
                 break;
             
             case "RETR":
-                handleRetr();
+                handleRetr(args);
                 break;
                 
             case "MKD":
@@ -180,6 +190,10 @@ public class Worker extends Thread
                 
             case "RMD":
                 handleRmd(args);
+                break;
+            
+            case "TYPE":
+                handleType(args);
                 break;
                 
             default:
@@ -609,6 +623,23 @@ public class Worker extends Thread
         
     }
     
+    private void handleType(String mode)
+    {
+        if(mode.toUpperCase().equals("A"))
+        {
+            transferMode = transferType.ASCII;
+            sendMsgToClient("200 OK");
+        }
+        else if(mode.toUpperCase().equals("I"))
+        {
+            transferMode = transferType.BINARY;
+            sendMsgToClient("200 OK");
+        }
+        else
+            sendMsgToClient("504 Not OK");;
+            
+    }
+    
     private String parseExtendedArguments(String extArg)
     {
         String[] splitArgs = extArg.split("\\|");
@@ -619,6 +650,121 @@ public class Worker extends Thread
          
         return ipAddress + "," + p1 + "," + p2;
         
+    }
+    
+    private void handleRetr(String file)
+    {
+        File f =  new File(currDirectory + fileSeparator + file);
+        if(!f.exists())
+        {
+            sendMsgToClient("550 Not ok");
+        }
+
+        else
+        {
+            BufferedOutputStream fout = null;
+            BufferedInputStream fin = null;
+            
+            // Binary mode
+            if (transferMode == transferType.BINARY)
+            {
+                sendMsgToClient("150 Opening binary mode data connection for requested file " + f.getName());
+                
+                try
+                {
+                    //create streams
+                    fout = new BufferedOutputStream(dataConnection.getOutputStream());
+                    fin = new BufferedInputStream(new FileInputStream(f));
+                }
+                catch (Exception e)
+                {
+                    System.out.println("Could not create file streams");
+                }
+                    
+                System.out.println("Starting file transmission of " + f.getName());
+                
+                // write file with buffer
+                byte[] buf = new byte[1024];
+                int l = 0;
+                try
+                {
+                    while ((l = fin.read(buf,0,1024)) != -1)
+                    {
+                        fout.write(buf,0,l);
+                    }
+                }
+                catch (IOException e)
+                {
+                    System.out.println("Could not read from or write to file streams");
+                    e.printStackTrace();
+                }
+                
+                //close streams
+                try
+                {
+                    fin.close();
+                    fout.close();
+                } catch (IOException e)
+                {
+                    System.out.println("Could not close file streams");
+                    e.printStackTrace();
+                }
+                
+                    
+                System.out.println("Completed file transmission of " + f.getName());
+  
+                sendMsgToClient("226 File transfer successful. Closing data connection.");
+
+            }
+            
+            // ASCII mode
+            else
+            {
+                sendMsgToClient("150 Opening ASCII mode data connection for requested file " + f.getName());
+
+                BufferedReader rin = null;
+                PrintWriter rout = null;
+                
+                try
+                {
+                    rin = new BufferedReader(new FileReader(f));
+                    rout = new PrintWriter(dataConnection.getOutputStream(),true);
+                    
+                }
+                catch (IOException e)
+                {
+                    System.out.println("Could not create file streams");
+                }
+                
+                String s;
+                
+                try
+                {
+                    while((s = rin.readLine()) != null)
+                    {
+                        rout.println(s);
+                    }
+                } catch (IOException e)
+                {
+                    System.out.println("Could not read from or write to file streams");
+                    e.printStackTrace();
+                }
+                
+                try
+                {
+                    rout.close();
+                    rin.close();
+                } catch (IOException e)
+                {
+                    System.out.println("Could not close file streams");
+                    e.printStackTrace();
+                }
+                sendMsgToClient("226 File transfer successful. Closing data connection.");
+            }
+
+        }
+        closeDataConnection();
+
     }
     
     

@@ -30,3 +30,8 @@ Hong Kong University of Science and Technology (HKUST).
 * QUIT
 * SYST
 * FEAT
+
+## Ressources used
+* https://tools.ietf.org/html/rfc959
+* http://www.nsftools.com/tips/RawFTP.htm
+* https://cr.yp.to/ftp.html

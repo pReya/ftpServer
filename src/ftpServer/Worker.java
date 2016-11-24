@@ -15,6 +15,8 @@ import java.net.Socket;
 
 public class Worker extends Thread
 {
+    // Enable debugging output to console
+    private boolean debugMode = true;
     
     private enum transferType {
         ASCII, BINARY
@@ -24,6 +26,7 @@ public class Worker extends Thread
         NOTLOGGEDIN, ENTEREDUSERNAME, LOGGEDIN
     }
     
+    
     // Path information
     private String root = "/Users/preya";
     private String currDirectory = "/Users/preya/Dropbox";
@@ -31,16 +34,17 @@ public class Worker extends Thread
 
 
     // control connection
-    private Socket client;
-    private PrintWriter out;
-    private BufferedReader in;
+    private Socket controlSocket;
+    private PrintWriter controlOutWriter;
+    private BufferedReader controlIn;
 
 
     // data Connection
     private ServerSocket dataSocket;
     private Socket dataConnection;
     private PrintWriter dataOutWriter;
-    private int dataPort = 1026;
+    
+    private int dataPort;
     private transferType transferMode = transferType.ASCII;
 
 
@@ -55,10 +59,11 @@ public class Worker extends Thread
      * Create new worker with given client socket
      * @param client the socket for the current client
      */
-    public Worker(Socket client)
+    public Worker(Socket client, int dataPort)
     {
         super();
-        this.client = client;
+        this.controlSocket = client;
+        this.dataPort = dataPort;
     }
     
     
@@ -72,10 +77,10 @@ public class Worker extends Thread
         try
         {
             // Input from client
-            in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+            controlIn = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
             
             // Output to client, automatically flushed after each print
-            out = new PrintWriter(client.getOutputStream(), true);
+            controlOutWriter = new PrintWriter(controlSocket.getOutputStream(), true);
             
             // Greeting
             sendMsgToClient("220 Welcome to the COMP4621 FTP-Server");
@@ -83,7 +88,7 @@ public class Worker extends Thread
             // Get new command from client
             while (!quitCommandLoop)
             {
-                executeCommand(in.readLine());
+                executeCommand(controlIn.readLine());
             }
                         
         }
@@ -96,15 +101,15 @@ public class Worker extends Thread
             // Clean up 
             try
             {                    
-                in.close(); 
-                out.close(); 
-                client.close(); 
-                System.out.println("Sockets closed and worker stopped"); 
+                controlIn.close(); 
+                controlOutWriter.close(); 
+                controlSocket.close(); 
+                debugOutput("Sockets closed and worker stopped"); 
             } 
             catch(IOException e) 
             { 
                 e.printStackTrace();
-                System.out.println("Could not close sockets");
+                debugOutput("Could not close sockets");
             } 
         } 
         
@@ -124,7 +129,7 @@ public class Worker extends Thread
         String args = ((index == -1)? null : c.substring(index+1, c.length()));
 
 
-        System.out.println("Command: " + command + " Args: " + args);
+        debugOutput("Command: " + command + " Args: " + args);
         
         // dispatcher mechanism for different commands
         switch(command) {
@@ -336,7 +341,7 @@ public class Worker extends Thread
         int p = Integer.parseInt(stringSplit[4])*256 + Integer.parseInt(stringSplit[5]);
         
         // Initiate data connection to client
-        connectToClientDataSocket(hostName, p);
+        openDataConnectionActive(hostName, p);
         sendMsgToClient("200 Command OK");
         
     }
@@ -358,7 +363,7 @@ public class Worker extends Thread
      */
     private void sendMsgToClient(String msg)
     {
-        out.println(msg);
+        controlOutWriter.println(msg);
     }
     
     /**
@@ -370,7 +375,7 @@ public class Worker extends Thread
         if (dataConnection == null || dataConnection.isClosed())
         {
             sendMsgToClient("425 No data connection was established");
-            System.out.println("Cannot send message, because no data connection is established");
+            debugOutput("Cannot send message, because no data connection is established");
         }
         else
         {
@@ -384,7 +389,7 @@ public class Worker extends Thread
      * Used for passive mode.
      * @param Port on which to listen for new incoming connection
      */
-    private void openDataConnection(int port)
+    private void openDataConnectionPassive(int port)
     {
 
         try
@@ -392,26 +397,30 @@ public class Worker extends Thread
             dataSocket = new ServerSocket(port);
             dataConnection = dataSocket.accept();
             dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-            System.out.println("Data connection - Passive Mode - established");
+            debugOutput("Data connection - Passive Mode - established");
             
         } catch (IOException e)
         {
-            System.out.println("Could not create data connection.");
+            debugOutput("Could not create data connection.");
             e.printStackTrace();
         }
 //        finally
 //        {
 //            try
 //            {
+//                dataOutWriter.close();
 //                dataConnection.close();
 //                dataSocket.close();
+//                
 //            } catch (IOException e)
 //            {
-//                System.out.println("Could not close sockets for data connection.");
+//                debugOutput("Could not close sockets for data connection.");
 //                e.printStackTrace();
 //            }
-//            dataConnection = null;
 //            dataOutWriter = null;
+//            dataConnection = null;
+//            dataSocket = null;
+//            
 //            
 //        }
     }
@@ -422,32 +431,32 @@ public class Worker extends Thread
      * @param Client IP address to connect to
      * @param Client port to connect to
      */
-    private void connectToClientDataSocket(String ipAddress, int port)
+    private void openDataConnectionActive(String ipAddress, int port)
     {
         try
         {
             dataConnection = new Socket(ipAddress, port);
             dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-            System.out.println("Data connection - Active Mode - established");
+            debugOutput("Data connection - Active Mode - established");
         } catch (IOException e)
         {
-            System.out.println("Could not connect to client data socket");
+            debugOutput("Could not connect to client data socket");
             e.printStackTrace();
         }
-        finally
-        {
-            try
-            {
-                dataConnection.close();
-                dataOutWriter.close();
-            } catch (IOException e)
-            {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            dataConnection = null;
-            dataOutWriter = null;
-        }
+//        finally
+//        {
+//            try
+//            {
+//                dataConnection.close();
+//                dataOutWriter.close();
+//            } catch (IOException e)
+//            {
+//                // TODO Auto-generated catch block
+//                e.printStackTrace();
+//            }
+//            dataConnection = null;
+//            dataOutWriter = null;
+//        }
         
         
     }
@@ -470,7 +479,7 @@ public class Worker extends Thread
         
         sendMsgToClient("227 Entering Passive Mode ("+ myIpSplit[0] +"," + myIpSplit[1] + "," + myIpSplit[2] + "," + myIpSplit[3] + "," + p1 + "," + p2 +")");
         
-        openDataConnection(dataPort);
+        openDataConnectionPassive(dataPort);
 
     }
     
@@ -481,7 +490,7 @@ public class Worker extends Thread
     private void handleEpsv()
     {
         sendMsgToClient("229 Entering Extended Passive Mode (|||" + dataPort + "|)");
-        openDataConnection(dataPort);  
+        openDataConnectionPassive(dataPort);  
     }
     
     /**
@@ -493,12 +502,16 @@ public class Worker extends Thread
         {
             dataOutWriter.close();
             dataConnection.close();
-            dataSocket.close();
+            if (dataSocket != null)
+            {
+                dataSocket.close();
+            }
+            
            
-            System.out.println("Data connection was closed");
+            debugOutput("Data connection was closed");
         } catch (IOException e)
         {
-            System.out.println("Could not close data connection");
+            debugOutput("Could not close data connection");
             e.printStackTrace();
         }
         dataOutWriter = null;
@@ -584,7 +597,7 @@ public class Worker extends Thread
             if(!dir.mkdir())
             {
                 sendMsgToClient("550 Failed to create new directory");
-                System.out.println("Failed to create new directory");
+                debugOutput("Failed to create new directory");
             }
             else
             {
@@ -678,10 +691,10 @@ public class Worker extends Thread
                 }
                 catch (Exception e)
                 {
-                    System.out.println("Could not create file streams");
+                    debugOutput("Could not create file streams");
                 }
                     
-                System.out.println("Starting file transmission of " + f.getName());
+                debugOutput("Starting file transmission of " + f.getName());
                 
                 // write file with buffer
                 byte[] buf = new byte[1024];
@@ -695,7 +708,7 @@ public class Worker extends Thread
                 }
                 catch (IOException e)
                 {
-                    System.out.println("Could not read from or write to file streams");
+                    debugOutput("Could not read from or write to file streams");
                     e.printStackTrace();
                 }
                 
@@ -706,12 +719,12 @@ public class Worker extends Thread
                     fout.close();
                 } catch (IOException e)
                 {
-                    System.out.println("Could not close file streams");
+                    debugOutput("Could not close file streams");
                     e.printStackTrace();
                 }
                 
                     
-                System.out.println("Completed file transmission of " + f.getName());
+                debugOutput("Completed file transmission of " + f.getName());
   
                 sendMsgToClient("226 File transfer successful. Closing data connection.");
 
@@ -733,7 +746,7 @@ public class Worker extends Thread
                 }
                 catch (IOException e)
                 {
-                    System.out.println("Could not create file streams");
+                    debugOutput("Could not create file streams");
                 }
                 
                 String s;
@@ -746,7 +759,7 @@ public class Worker extends Thread
                     }
                 } catch (IOException e)
                 {
-                    System.out.println("Could not read from or write to file streams");
+                    debugOutput("Could not read from or write to file streams");
                     e.printStackTrace();
                 }
                 
@@ -756,7 +769,7 @@ public class Worker extends Thread
                     rin.close();
                 } catch (IOException e)
                 {
-                    System.out.println("Could not close file streams");
+                    debugOutput("Could not close file streams");
                     e.printStackTrace();
                 }
                 sendMsgToClient("226 File transfer successful. Closing data connection.");
@@ -765,6 +778,14 @@ public class Worker extends Thread
         }
         closeDataConnection();
 
+    }
+    
+    private void debugOutput(String msg)
+    {
+        if (debugMode)
+        {
+            System.out.println("Thread " + this.getId() + ": " + msg);
+        }
     }
     
     

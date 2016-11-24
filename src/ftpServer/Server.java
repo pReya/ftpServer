@@ -3,7 +3,11 @@ package ftpServer;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-
+/**
+ * FTP Server class. On receiving a new connection it creates a new worker thread.
+ * @author Moritz Stueckler (SID 20414726)
+ *
+ */
 public class Server
 {
     private int controlPort = 1025;
@@ -29,15 +33,24 @@ public class Server
         
         System.out.println("FTP Server started listening on port " + controlPort);
 
-
+        int noOfThreads = 0;
+        
         while (serverRunning)
         {
 
             try
             {
+                
                 Socket client = welcomeSocket.accept();
-                Worker w = new Worker(client);
+                
+                // Port for incoming dataConnection (for passive mode) is the controlPort + number of created threads + 1
+                int dataPort = controlPort + noOfThreads + 1;
+                
+                // Create new worker thread for new connection
+                Worker w = new Worker(client, dataPort);
+
                 System.out.println("New connection received. Worker was created.");
+                noOfThreads++;
                 w.start();
             }
             catch (IOException e)

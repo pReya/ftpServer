@@ -5,14 +5,20 @@ import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+/**
+ * Class for a FTP server worker thread.
+ * 
+ * @author Moritz Stueckler (SID 20414726)
+ *
+ */
 public class Worker extends Thread
 {
     // Enable debugging output to console
@@ -201,6 +207,10 @@ public class Worker extends Thread
                 handleType(args);
                 break;
                 
+            case "STOR":
+                handleStor(args);
+                break;
+                
             default:
                 sendMsgToClient("501 Unknown command");
                 break;
@@ -209,6 +219,167 @@ public class Worker extends Thread
 
     return true;
     }
+
+    /**
+     * Sends a message to the connected client over the control connection.
+     * Flushing is automatically performed by the stream.
+     * @param msg The message that will be sent
+     */
+    private void sendMsgToClient(String msg)
+    {
+        controlOutWriter.println(msg);
+    }
+
+
+
+    /**
+     * Send a message to the connected client over the data connection.
+     * @param Message to be sent
+     */
+    private void sendDataMsgToClient(String msg)
+    {
+        if (dataConnection == null || dataConnection.isClosed())
+        {
+            sendMsgToClient("425 No data connection was established");
+            debugOutput("Cannot send message, because no data connection is established");
+        }
+        else
+        {
+            dataOutWriter.println(msg);
+        }
+        
+    }
+
+
+
+    /**
+     * Open a new data connection socket and wait for new incoming connection from client.
+     * Used for passive mode.
+     * @param Port on which to listen for new incoming connection
+     */
+    private void openDataConnectionPassive(int port)
+    {
+
+        try
+        {
+            dataSocket = new ServerSocket(port);
+            dataConnection = dataSocket.accept();
+            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            debugOutput("Data connection - Passive Mode - established");
+
+        } catch (IOException e)
+        {
+            debugOutput("Could not create data connection.");
+            e.printStackTrace();
+        }
+
+    }
+
+
+
+    /**
+     * Connect to client socket for data connection.
+     * Used for active mode.
+     * @param Client IP address to connect to
+     * @param Client port to connect to
+     */
+    private void openDataConnectionActive(String ipAddress, int port)
+    {
+        try
+        {
+            dataConnection = new Socket(ipAddress, port);
+            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
+            debugOutput("Data connection - Active Mode - established");
+        } catch (IOException e)
+        {
+            debugOutput("Could not connect to client data socket");
+            e.printStackTrace();
+        }
+
+    }
+
+
+
+    /**
+     * Close previously established data connection sockets and streams
+     */
+    private void closeDataConnection()
+    {
+        try
+        {
+            dataOutWriter.close();
+            dataConnection.close();
+            if (dataSocket != null)
+            {
+                dataSocket.close();
+            }
+            
+           
+            debugOutput("Data connection was closed");
+        } catch (IOException e)
+        {
+            debugOutput("Could not close data connection");
+            e.printStackTrace();
+        }
+        dataOutWriter = null;
+        dataConnection = null;
+        dataSocket = null;          
+    }
+
+
+
+    /**
+     * Handler for USER command.
+     * User identifies the client.
+     * @param username
+     */
+    private void handleUser(String username)
+    {
+        if (username.toLowerCase().equals(validUser))
+        {
+            sendMsgToClient("331 User name okay, need password");
+            currentUserStatus = userStatus.ENTEREDUSERNAME;
+        }
+        else if (currentUserStatus == userStatus.LOGGEDIN)
+        {
+            sendMsgToClient("530 User already logged in");
+        }
+        else
+        {
+            sendMsgToClient("530 Not logged in");
+        }
+    }
+
+    /**
+     * Handler for PASS command.
+     * PASS receives the user password and checks if it's valid.
+     * @param password
+     */
+
+    private void handlePass(String password)
+    {
+        // User has entered a valid username and password is correct
+        if (currentUserStatus == userStatus.ENTEREDUSERNAME && password.equals(validPassword))
+        {
+            currentUserStatus = userStatus.LOGGEDIN;
+            sendMsgToClient("230-Welcome to HKUST");
+            sendMsgToClient("230 User logged in successfully");  
+        }
+        
+        // User is already logged in
+        else if (currentUserStatus == userStatus.LOGGEDIN)
+        {
+            sendMsgToClient("530 User already logged in");
+        }
+        
+        // Wrong password
+        else
+        {
+            sendMsgToClient("530 Not logged in");
+        }
+    }
+
+
 
     /**
      * Handler for CWD (change working directory) command.
@@ -249,7 +420,8 @@ public class Worker extends Thread
     }
     
     /**
-     * Handler for NLST (Named List) command. Lists the directory content in a short format (names only)
+     * Handler for NLST (Named List) command.
+     * Lists the directory content in a short format (names only)
      * @param args
      */
     private void handleNlst(String args)
@@ -357,111 +529,6 @@ public class Worker extends Thread
     }
     
     /**
-     * Sends a message to the connected client over the control connection.
-     * Flushing is automatically performed by the stream.
-     * @param msg The message that will be sent
-     */
-    private void sendMsgToClient(String msg)
-    {
-        controlOutWriter.println(msg);
-    }
-    
-    /**
-     * Send a message to the connected client over the data connection.
-     * @param msg
-     */
-    private void sendDataMsgToClient(String msg)
-    {
-        if (dataConnection == null || dataConnection.isClosed())
-        {
-            sendMsgToClient("425 No data connection was established");
-            debugOutput("Cannot send message, because no data connection is established");
-        }
-        else
-        {
-            dataOutWriter.println(msg);
-        }
-        
-    }
-    
-    /**
-     * Open a new data connection socket and wait for new incoming connection from client.
-     * Used for passive mode.
-     * @param Port on which to listen for new incoming connection
-     */
-    private void openDataConnectionPassive(int port)
-    {
-
-        try
-        {
-            dataSocket = new ServerSocket(port);
-            dataConnection = dataSocket.accept();
-            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-            debugOutput("Data connection - Passive Mode - established");
-            
-        } catch (IOException e)
-        {
-            debugOutput("Could not create data connection.");
-            e.printStackTrace();
-        }
-//        finally
-//        {
-//            try
-//            {
-//                dataOutWriter.close();
-//                dataConnection.close();
-//                dataSocket.close();
-//                
-//            } catch (IOException e)
-//            {
-//                debugOutput("Could not close sockets for data connection.");
-//                e.printStackTrace();
-//            }
-//            dataOutWriter = null;
-//            dataConnection = null;
-//            dataSocket = null;
-//            
-//            
-//        }
-    }
-    
-    /**
-     * Connect to client socket for data connection.
-     * Used for active mode.
-     * @param Client IP address to connect to
-     * @param Client port to connect to
-     */
-    private void openDataConnectionActive(String ipAddress, int port)
-    {
-        try
-        {
-            dataConnection = new Socket(ipAddress, port);
-            dataOutWriter = new PrintWriter(dataConnection.getOutputStream(), true);
-            debugOutput("Data connection - Active Mode - established");
-        } catch (IOException e)
-        {
-            debugOutput("Could not connect to client data socket");
-            e.printStackTrace();
-        }
-//        finally
-//        {
-//            try
-//            {
-//                dataConnection.close();
-//                dataOutWriter.close();
-//            } catch (IOException e)
-//            {
-//                // TODO Auto-generated catch block
-//                e.printStackTrace();
-//            }
-//            dataConnection = null;
-//            dataOutWriter = null;
-//        }
-        
-        
-    }
-    
-    /**
      * Handler for PASV command which initiates the passive mode.
      * In passive mode the client initiates the data connection to the server.
      * In active mode the server initiates the data connection to the client.
@@ -494,76 +561,8 @@ public class Worker extends Thread
     }
     
     /**
-     * Close previously established data connection sockets and streams
+     * Handler for the QUIT command.
      */
-    private void closeDataConnection()
-    {
-        try
-        {
-            dataOutWriter.close();
-            dataConnection.close();
-            if (dataSocket != null)
-            {
-                dataSocket.close();
-            }
-            
-           
-            debugOutput("Data connection was closed");
-        } catch (IOException e)
-        {
-            debugOutput("Could not close data connection");
-            e.printStackTrace();
-        }
-        dataOutWriter = null;
-        dataConnection = null;
-        dataSocket = null;          
-    }
-    
-    /**
-     * Handler for USER command.
-     * User identifies the client.
-     * @param username
-     */
-    private void handleUser(String username)
-    {
-        if (username.toLowerCase().equals(validUser))
-        {
-            sendMsgToClient("331 User name okay, need password");
-            currentUserStatus = userStatus.ENTEREDUSERNAME;
-        }
-        else if (currentUserStatus == userStatus.LOGGEDIN)
-        {
-            sendMsgToClient("530 User already logged in");
-        }
-        else
-        {
-            sendMsgToClient("530 Not logged in");
-        }
-    }
-    
-    private void handlePass(String password)
-    {
-        // User has entered a valid username and password is correct
-        if (currentUserStatus == userStatus.ENTEREDUSERNAME && password.equals(validPassword))
-        {
-            currentUserStatus = userStatus.LOGGEDIN;
-            sendMsgToClient("230-Welcome to HKUST");
-            sendMsgToClient("230 User logged in successfully");  
-        }
-        
-        // User is already logged in
-        else if (currentUserStatus == userStatus.LOGGEDIN)
-        {
-            sendMsgToClient("530 User already logged in");
-        }
-        
-        // Wrong password
-        else
-        {
-            sendMsgToClient("530 Not logged in");
-        }
-    }
-    
     private void handleQuit()
     {
         sendMsgToClient("221 Closing connection");
@@ -575,18 +574,23 @@ public class Worker extends Thread
         sendMsgToClient("215 COMP4621 FTP Server Homebrew");
     }
     
+    /**
+     * Handler for the FEAT (features) command.
+     * Feat transmits the abilities/features of the server to the client.
+     * Needed for some ftp clients.
+     * This is just a dummy message to satisfy clients, no real feature information included.
+     */
     private void handleFeat()
     {
         sendMsgToClient("211-Extensions supported:");
         sendMsgToClient("211 END");
     }
     
-    private void handleRetr()
-    {
-        sendMsgToClient("150 Opening ASCII mode data connection");
-        
-    }
-    
+    /**
+     * Handler for the MKD (make directory) command.
+     * Creates a new directory on the server.
+     * @param Directory name
+     */
     private void handleMkd(String args)
     {
         // Allow only alphanumeric characters
@@ -611,31 +615,46 @@ public class Worker extends Thread
         
     }
     
-    private void handleRmd(String args)
+    /**
+     * Handler for RMD (remove directory) command.
+     * Removes a directory.
+     * @param directory to be deleted.
+     */
+    private void handleRmd(String dir)
     {  
         String filename = currDirectory;
         
-        if (args != null && args.matches("^[a-zA-Z0-9]+$"))
+        // only alphanumeric folder names are allowed
+        if (dir != null && dir.matches("^[a-zA-Z0-9]+$"))
         {
-            filename = filename + fileSeparator + args;
-        }
-    
-        // check if file exists, is directory and is not above root directory
-        File dir = new File(filename);
-    
-        if (dir.exists() && dir.isDirectory())
-        {
-            dir.delete();
+            filename = filename + fileSeparator + dir;
             
-            sendMsgToClient("250 Directory was successfully removed");
+            // check if file exists, is directory
+            File d = new File(filename);
+        
+            if (d.exists() && d.isDirectory())
+            {
+                d.delete();
+                
+                sendMsgToClient("250 Directory was successfully removed");
+            }
+            else
+            {
+                sendMsgToClient("550 Requested action not taken. File unavailable.");
+            }
         }
         else
         {
-            sendMsgToClient("550 Requested action not taken. File unavailable.");
+            sendMsgToClient("550 Invalid file name.");
         }
-        
+           
     }
     
+    /**
+     * Handler for the TYPE command.
+     * The type command sets the transfer mode to either binary or ascii mode
+     * @param "a" for Ascii. "i" for image/binary.
+     */
     private void handleType(String mode)
     {
         if(mode.toUpperCase().equals("A"))
@@ -653,34 +672,29 @@ public class Worker extends Thread
             
     }
     
-    private String parseExtendedArguments(String extArg)
-    {
-        String[] splitArgs = extArg.split("\\|");
-        String ipAddress = splitArgs[2].replace('.', ',');
-        int port = Integer.parseInt(splitArgs[3]);
-        int p1 = port/256;
-        int p2 = port%256;
-         
-        return ipAddress + "," + p1 + "," + p2;
-        
-    }
-    
+    /**
+     * Handler for the RETR (retrieve) command.
+     * Retrieve transfers a file from the ftp server to the client.
+     * @param file
+     */
     private void handleRetr(String file)
     {
         File f =  new File(currDirectory + fileSeparator + file);
+        
         if(!f.exists())
         {
-            sendMsgToClient("550 Not ok");
+            sendMsgToClient("550 File does not exist");
         }
-
+    
         else
         {
-            BufferedOutputStream fout = null;
-            BufferedInputStream fin = null;
             
             // Binary mode
             if (transferMode == transferType.BINARY)
             {
+                BufferedOutputStream fout = null;
+                BufferedInputStream fin = null;
+                
                 sendMsgToClient("150 Opening binary mode data connection for requested file " + f.getName());
                 
                 try
@@ -725,16 +739,16 @@ public class Worker extends Thread
                 
                     
                 debugOutput("Completed file transmission of " + f.getName());
-  
+    
                 sendMsgToClient("226 File transfer successful. Closing data connection.");
-
+    
             }
             
             // ASCII mode
             else
             {
                 sendMsgToClient("150 Opening ASCII mode data connection for requested file " + f.getName());
-
+    
                 BufferedReader rin = null;
                 PrintWriter rout = null;
                 
@@ -774,12 +788,165 @@ public class Worker extends Thread
                 }
                 sendMsgToClient("226 File transfer successful. Closing data connection.");
             }
-
+    
         }
         closeDataConnection();
-
+    
     }
     
+    /**
+     * Handler for STOR (Store) command.
+     * Store receives a file from the client and saves it to the ftp server.
+     * @param file
+     */
+    private void handleStor(String file)
+    {
+        if (file == null)
+        {
+            sendDataMsgToClient("501 No filename given");
+        }
+        else
+        {
+            File f =  new File(currDirectory + fileSeparator + file);
+
+            if(f.exists())
+            {
+                sendMsgToClient("550 File already exists");
+            }
+
+            else
+            {
+
+                // Binary mode
+                if (transferMode == transferType.BINARY)
+                {
+                    BufferedOutputStream fout = null;
+                    BufferedInputStream fin = null;
+                    
+                    sendMsgToClient("150 Opening binary mode data connection for requested file " + f.getName());
+
+                    try
+                    {
+                        // create streams
+                        fout = new BufferedOutputStream(new FileOutputStream(f));
+                        fin = new BufferedInputStream(dataConnection.getInputStream());
+                    }
+                    catch (Exception e)
+                    {
+                        debugOutput("Could not create file streams");
+                    }
+
+                    debugOutput("Start receiving file " + f.getName());
+
+                    // write file with buffer
+                    byte[] buf = new byte[1024];
+                    int l = 0;
+                    try
+                    {
+                        while ((l = fin.read(buf,0,1024)) != -1)
+                        {
+                            fout.write(buf,0,l);
+                        }
+                    }
+                    catch (IOException e)
+                    {
+                        debugOutput("Could not read from or write to file streams");
+                        e.printStackTrace();
+                    }
+
+                    //close streams
+                    try
+                    {
+                        fin.close();
+                        fout.close();
+                    } catch (IOException e)
+                    {
+                        debugOutput("Could not close file streams");
+                        e.printStackTrace();
+                    }
+
+
+                    debugOutput("Completed receiving file " + f.getName());
+
+                    sendMsgToClient("226 File transfer successful. Closing data connection.");
+
+                }
+
+                // ASCII mode
+                else
+                {
+                    sendMsgToClient("150 Opening ASCII mode data connection for requested file " + f.getName());
+
+                    BufferedReader rin = null;
+                    PrintWriter rout = null;
+
+                    try
+                    {
+                        rin = new BufferedReader(new InputStreamReader(dataConnection.getInputStream()));
+                        rout = new PrintWriter(new FileOutputStream(f),true);
+
+                    }
+                    catch (IOException e)
+                    {
+                        debugOutput("Could not create file streams");
+                    }
+
+                    String s;
+
+                    try
+                    {
+                        while((s = rin.readLine()) != null)
+                        {
+                            rout.println(s);
+                        }
+                    } catch (IOException e)
+                    {
+                        debugOutput("Could not read from or write to file streams");
+                        e.printStackTrace();
+                    }
+
+                    try
+                    {
+                        rout.close();
+                        rin.close();
+                    } catch (IOException e)
+                    {
+                        debugOutput("Could not close file streams");
+                        e.printStackTrace();
+                    }
+                    sendMsgToClient("226 File transfer successful. Closing data connection.");
+                }
+
+            }
+            closeDataConnection();
+        }
+
+    }
+
+    /**
+     * Helper method to parse the arguments of the EXXX commands (e.g. EPRT).
+     * EXXX commands are newer and support IPv6 (not supported here). The arguments
+     * get translated back to a "regular" argument.
+     * @param The extended argument
+     * @return The regular argument
+     */
+
+    private String parseExtendedArguments(String extArg)
+    {
+        String[] splitArgs = extArg.split("\\|");
+        String ipAddress = splitArgs[2].replace('.', ',');
+        int port = Integer.parseInt(splitArgs[3]);
+        int p1 = port/256;
+        int p2 = port%256;
+         
+        return ipAddress + "," + p1 + "," + p2;
+        
+    }
+    
+    /**
+     * Debug output to the console. Also includes the Thread ID for better readability.
+     * @param Debug message
+     */
     private void debugOutput(String msg)
     {
         if (debugMode)

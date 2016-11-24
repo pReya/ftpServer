@@ -10,6 +10,23 @@ Hong Kong University of Science and Technology (HKUST).
 
 ## Configuration
 1. Set "controlPort" in Server.java (needs to be above 1024 if you're not running the JVM in sudo mode, e.g. within your IDE)
-2. Set root, currFirectory and fileSeparator in Worker.java
-(3. If client and server are not on the same host, you need to add the client IP address to myIp in handlePasv().)
+2. Set folders: root, currDirectory and fileSeparator in Worker.java
+3. If client and server are not on the same host, you need to add the client IP address to myIp in handlePasv().
 
+## Supported FTP commands
+* USER
+* PASS
+* PASV
+* EPASV
+* PORT
+* EPRT
+* MKD
+* RMD
+* CWD
+* PWD
+* TYPE
+* RETR
+* STOR
+* QUIT
+* SYST
+* FEAT

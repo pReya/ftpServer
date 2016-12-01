@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 /**
- * FTP Server class. On receiving a new connection it creates a new worker thread.
+ * FTP Server class.
+ * On receiving a new connection it creates a new worker thread.
+ * 
  * @author Moritz Stueckler (SID 20414726)
  *
  */

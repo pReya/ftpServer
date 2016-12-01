@@ -34,8 +34,8 @@ public class Worker extends Thread
     
     
     // Path information
-    private String root = "/Users/preya";
-    private String currDirectory = "/Users/preya/Dropbox";
+    private String root = "/Users/";
+    private String currDirectory = "/Users/preya";
     private String fileSeparator = "/";
 
 
@@ -64,6 +64,7 @@ public class Worker extends Thread
     /**
      * Create new worker with given client socket
      * @param client the socket for the current client
+     * @param dataPort the port for the data connection
      */
     public Worker(Socket client, int dataPort)
     {
@@ -122,12 +123,11 @@ public class Worker extends Thread
     }
     
     /**
-     * Main command dispatcher method
-     * @param c
-     * @return
-     * @throws IOException
+     * Main command dispatcher method.
+     * Separates the command from the arguments and dispatches it to single handler functions.
+     * @param c the raw input from the socket consisting of command and arguments
      */
-    private boolean executeCommand(String c) throws IOException
+    private void executeCommand(String c)
     {
         // split command and arguments
         int index = c.indexOf(' ');
@@ -217,7 +217,6 @@ public class Worker extends Thread
             
         }
 
-    return true;
     }
 
     /**
@@ -234,7 +233,7 @@ public class Worker extends Thread
 
     /**
      * Send a message to the connected client over the data connection.
-     * @param Message to be sent
+     * @param msg Message to be sent
      */
     private void sendDataMsgToClient(String msg)
     {
@@ -255,7 +254,7 @@ public class Worker extends Thread
     /**
      * Open a new data connection socket and wait for new incoming connection from client.
      * Used for passive mode.
-     * @param Port on which to listen for new incoming connection
+     * @param port Port on which to listen for new incoming connection
      */
     private void openDataConnectionPassive(int port)
     {
@@ -280,8 +279,8 @@ public class Worker extends Thread
     /**
      * Connect to client socket for data connection.
      * Used for active mode.
-     * @param Client IP address to connect to
-     * @param Client port to connect to
+     * @param ipAddress Client IP address to connect to
+     * @param port Client port to connect to
      */
     private void openDataConnectionActive(String ipAddress, int port)
     {
@@ -331,7 +330,7 @@ public class Worker extends Thread
     /**
      * Handler for USER command.
      * User identifies the client.
-     * @param username
+     * @param username Username entered by the user
      */
     private void handleUser(String username)
     {
@@ -353,7 +352,7 @@ public class Worker extends Thread
     /**
      * Handler for PASS command.
      * PASS receives the user password and checks if it's valid.
-     * @param password
+     * @param password Password entered by the user
      */
 
     private void handlePass(String password)
@@ -383,7 +382,7 @@ public class Worker extends Thread
 
     /**
      * Handler for CWD (change working directory) command.
-     * @param new directory
+     * @param args New directory to be created
      */
     private void handleCwd(String args)
     {
@@ -422,7 +421,7 @@ public class Worker extends Thread
     /**
      * Handler for NLST (Named List) command.
      * Lists the directory content in a short format (names only)
-     * @param args
+     * @param args The directory to be listed
      */
     private void handleNlst(String args)
     {
@@ -460,7 +459,7 @@ public class Worker extends Thread
     /**
      * A helper for the NLST command. The directory name is obtained by 
      * appending "args" to the current directory
-     * @param args
+     * @param args The directory to list
      * @return an array containing names of files in a directory. If the given
      * name is that of a file, then return an array containing only one element
      * (this name). If the file or directory does not exist, return nul.
@@ -500,7 +499,7 @@ public class Worker extends Thread
      * The client issues a PORT command to the server in active mode, so the
      * server can open a data connection to the client through the given address
      * and port number.
-     * @param The first four segments (separated by comma) are the IP address.
+     * @param args The first four segments (separated by comma) are the IP address.
      *        The last two segments encode the port number (port = seg1*256 + seg2)
      */
     private void handlePort(String args)
@@ -521,7 +520,7 @@ public class Worker extends Thread
     
     /**
      * Handler for PWD (Print working directory) command.
-     * Names the path of the current directory.
+     * Returns the path of the current directory back to the client.
      */
     private void handlePwd()
     {
@@ -589,7 +588,7 @@ public class Worker extends Thread
     /**
      * Handler for the MKD (make directory) command.
      * Creates a new directory on the server.
-     * @param Directory name
+     * @param args Directory name
      */
     private void handleMkd(String args)
     {
@@ -618,7 +617,7 @@ public class Worker extends Thread
     /**
      * Handler for RMD (remove directory) command.
      * Removes a directory.
-     * @param directory to be deleted.
+     * @param dir directory to be deleted.
      */
     private void handleRmd(String dir)
     {  
@@ -653,7 +652,7 @@ public class Worker extends Thread
     /**
      * Handler for the TYPE command.
      * The type command sets the transfer mode to either binary or ascii mode
-     * @param "a" for Ascii. "i" for image/binary.
+     * @param mode Transfer mode: "a" for Ascii. "i" for image/binary.
      */
     private void handleType(String mode)
     {
@@ -675,7 +674,7 @@ public class Worker extends Thread
     /**
      * Handler for the RETR (retrieve) command.
      * Retrieve transfers a file from the ftp server to the client.
-     * @param file
+     * @param file The file to transfer to the user
      */
     private void handleRetr(String file)
     {
@@ -797,7 +796,7 @@ public class Worker extends Thread
     /**
      * Handler for STOR (Store) command.
      * Store receives a file from the client and saves it to the ftp server.
-     * @param file
+     * @param file The file that the user wants to store on the server
      */
     private void handleStor(String file)
     {
@@ -927,7 +926,7 @@ public class Worker extends Thread
      * Helper method to parse the arguments of the EXXX commands (e.g. EPRT).
      * EXXX commands are newer and support IPv6 (not supported here). The arguments
      * get translated back to a "regular" argument.
-     * @param The extended argument
+     * @param extArg The extended argument
      * @return The regular argument
      */
 
@@ -945,7 +944,7 @@ public class Worker extends Thread
     
     /**
      * Debug output to the console. Also includes the Thread ID for better readability.
-     * @param Debug message
+     * @param msg Debug message
      */
     private void debugOutput(String msg)
     {

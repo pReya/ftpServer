@@ -35,3 +35,5 @@ Hong Kong University of Science and Technology (HKUST).
 * https://tools.ietf.org/html/rfc959
 * http://www.nsftools.com/tips/RawFTP.htm
 * https://cr.yp.to/ftp.html
+* http://www.mysamplecode.com/2011/12/java-multithreaded-socket-server.html
+* http://www.ugrad.cs.ubc.ca/~cs219/Labs/Threads/lab-threads.html

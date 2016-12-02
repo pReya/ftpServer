@@ -21,21 +21,29 @@ import java.net.Socket;
  */
 public class Worker extends Thread
 {
-    // Enable debugging output to console
+    /**
+     *  Enable debugging output to console
+     */
     private boolean debugMode = true;
     
+    /**
+     * Indicating the last set transfer Type
+     */
     private enum transferType {
         ASCII, BINARY
     }
     
+    /**
+     * Indicates the authentification status of a user
+     */
     private enum userStatus {
         NOTLOGGEDIN, ENTEREDUSERNAME, LOGGEDIN
     }
     
     
     // Path information
-    private String root = "/Users/";
-    private String currDirectory = "/Users/preya";
+    private String root;
+    private String currDirectory;
     private String fileSeparator = "/";
 
 
@@ -71,6 +79,8 @@ public class Worker extends Thread
         super();
         this.controlSocket = client;
         this.dataPort = dataPort;
+        this.currDirectory = System.getProperty("user.dir") + "/test";
+        this.root = System.getProperty("user.dir");
     }
     
     
@@ -228,7 +238,7 @@ public class Worker extends Thread
     {
         controlOutWriter.println(msg);
     }
-
+    
 
 
     /**
@@ -244,7 +254,7 @@ public class Worker extends Thread
         }
         else
         {
-            dataOutWriter.println(msg);
+            dataOutWriter.print(msg + '\r' + '\n');
         }
         
     }
@@ -802,7 +812,7 @@ public class Worker extends Thread
     {
         if (file == null)
         {
-            sendDataMsgToClient("501 No filename given");
+            sendMsgToClient("501 No filename given");
         }
         else
         {

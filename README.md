@@ -2,7 +2,7 @@
 
 This is a simple implementation of a FTP server in Java as a class project for COMP4621 (Computer Communication Networks) at Hong Kong University of Science and Technology (HKUST) in fall semester 2016.
 
-##The main features of this implementation are:
+## The main features of this implementation are:
 
 - Works with standard Linux/Mac terminal tools ftp, telnet and curl.
 - Support for both active and passive mode connections
@@ -12,7 +12,7 @@ This is a simple implementation of a FTP server in Java as a class project for C
 - Standard user name is "comp4621" and password "network". User name and password are not case sensitive.
 - Understands extended FTP arguments (EPSV instead of PASV and EPRT instead of EPRT).
 
-##Problems/Todos with this implementation:
+## Problems/Todos with this implementation:
 
 - Not working with GUI ftp clients, because they need to receive directory listings ins /bin/ls format. This implementation only prints names of files and folders, no additional information.
 - File system access is not synchronized. Two clients writing to the same file will result in invalid results.

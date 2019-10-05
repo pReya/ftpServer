@@ -29,7 +29,7 @@ public class Server
         }
         catch (IOException e)
         {
-            System.out.println("Could not create server socket"); 
+            System.out.println("Could not create server socket in this pc"); 
             System.exit(-1);
         }
         
@@ -51,7 +51,7 @@ public class Server
                 // Create new worker thread for new connection
                 Worker w = new Worker(client, dataPort);
 
-                System.out.println("New connection received. Worker was created.");
+                System.out.println("New connection received and  Worker was created.");
                 noOfThreads++;
                 w.start();
             }
@@ -65,7 +65,7 @@ public class Server
         try
         {
             welcomeSocket.close();
-            System.out.println("Server was stopped");
+            System.out.println("Server has stopped");
             
         } catch (IOException e)
         {

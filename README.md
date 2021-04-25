@@ -51,6 +51,24 @@ For implementation details on the handler functions please refer to the comments
 * SYST
 * FEAT
 
+
+## Examples of usage
+
+These examples are based on the use of windows ftp client:
+
+`ftp>open localhost 1025`
+
+The terminal prompt this message asking for user (comp4621) :
+
+`220 Welcome to the COMP4621 FTP-Server
+501 Unknown command
+Utilisateur (LAPTOP-0CETF771:(none)) :comp4621`
+
+Afterwards introduce the password (network)
+
+The root folder should also have a folder named 'test'.
+When connected you can use ftp commands as stated here : https://www.windows-commandline.com/windows-ftp-command-line/
+
 ## Ressources used
 * https://tools.ietf.org/html/rfc959
 * http://www.nsftools.com/tips/RawFTP.htm

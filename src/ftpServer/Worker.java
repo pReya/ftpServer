@@ -21,6 +21,8 @@ import java.net.Socket;
  */
 public class Worker extends Thread
 {
+    private static final String IPV4 = "1";
+    private static final String IPV6 = "2";
     /**
      *  Enable debugging output to console
      */
@@ -142,7 +144,7 @@ public class Worker extends Thread
         // split command and arguments
         int index = c.indexOf(' ');
         String command = ((index == -1)? c.toUpperCase() : (c.substring(0, index)).toUpperCase());
-        String args = ((index == -1)? null : c.substring(index+1, c.length()));
+        String args = ((index == -1)? null : c.substring(index+1));
 
 
         debugOutput("Command: " + command + " Args: " + args);
@@ -170,6 +172,7 @@ public class Worker extends Thread
                 break;
                 
             case "PWD":
+            case "XPWD":
                 handlePwd();
                 break;
                 
@@ -188,7 +191,7 @@ public class Worker extends Thread
             case "SYST":
                 handleSyst();
                 break;
-                
+
             case "FEAT":
                 handleFeat();
                 break;
@@ -198,18 +201,20 @@ public class Worker extends Thread
                 break;
                 
             case "EPRT":
-                handlePort(parseExtendedArguments(args));
+                handleEPort(parseExtendedArguments(args));
                 break;
             
             case "RETR":
                 handleRetr(args);
                 break;
                 
-            case "MKD":
+            case "MKD" :
+            case "XMKD":
                 handleMkd(args);
                 break;
                 
             case "RMD":
+            case "XRMD":
                 handleRmd(args);
                 break;
             
@@ -516,7 +521,7 @@ public class Worker extends Thread
     {
         // Extract IP address and port number from arguments
         String[] stringSplit = args.split(",");
-        String hostName = stringSplit[0] + "." + stringSplit[1] + "." + 
+        String hostName = stringSplit[0] + "." + stringSplit[1] + "." +
                 stringSplit[2] + "." + stringSplit[3];
     
         int p = Integer.parseInt(stringSplit[4])*256 + Integer.parseInt(stringSplit[5]);
@@ -527,7 +532,28 @@ public class Worker extends Thread
         
     }
 
-    
+    /**
+     * Handler for the EPORT command.
+     * The client issues an EPORT command to the server in active mode, so the
+     * server can open a data connection to the client through the given address
+     * and port number.
+     * @param args The first segment are is IP address.
+     *        The last two segments encode the port number (port = seg1*256 + seg2)
+     */
+    private void handleEPort(String args)
+    {
+        // Extract IP address and port number from arguments
+        String[] stringSplit = args.split(",");
+        String hostName = stringSplit[0];
+
+        int p = Integer.parseInt(stringSplit[1])*256 + Integer.parseInt(stringSplit[2]);
+
+        // Initiate data connection to client
+        openDataConnectionActive(hostName, p);
+        sendMsgToClient("200 Command OK");
+
+    }
+
     /**
      * Handler for PWD (Print working directory) command.
      * Returns the path of the current directory back to the client.
@@ -934,7 +960,7 @@ public class Worker extends Thread
 
     /**
      * Helper method to parse the arguments of the EXXX commands (e.g. EPRT).
-     * EXXX commands are newer and support IPv6 (not supported here). The arguments
+     * EXXX commands are newer and support IPv6.The arguments
      * get translated back to a "regular" argument.
      * @param extArg The extended argument
      * @return The regular argument
@@ -943,15 +969,33 @@ public class Worker extends Thread
     private String parseExtendedArguments(String extArg)
     {
         String[] splitArgs = extArg.split("\\|");
-        String ipAddress = splitArgs[2].replace('.', ',');
-        int port = Integer.parseInt(splitArgs[3]);
+        String version = splitArgs[1];
+        if(IPV4.equals(version)){
+            return buildExtendedArgsIpV4(splitArgs);
+        }
+        else if(IPV6.equals(version)) {
+            return buildExtendedArgsIpV6(splitArgs);
+        }
+         throw new IllegalArgumentException("Unsupported IP version");
+    }
+
+    private String buildExtendedArgsIpV4(String[] args) {
+        String ipAddress = args[2].replace(',', '.');
+        int port = Integer.parseInt(args[3]);
         int p1 = port/256;
         int p2 = port%256;
-         
         return ipAddress + "," + p1 + "," + p2;
-        
     }
-    
+
+    private String buildExtendedArgsIpV6(String[] args) {
+        String ipAddress = args[2];
+        int port = Integer.parseInt(args[3]);
+        int p1 = port / 256;
+        int p2 = port % 256;
+        return ipAddress + "," + p1 + "," + p2;
+    }
+
+
     /**
      * Debug output to the console. Also includes the Thread ID for better readability.
      * @param msg Debug message

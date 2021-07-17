@@ -4,7 +4,8 @@ This is a simple implementation of a FTP server in Java as a class project for C
 
 ## The main features of this implementation are:
 
-- Works with standard Linux/Mac terminal tools ftp, telnet and curl.
+- Works with standard Windows/Linux/Mac terminal tools ftp, telnet and curl.
+- Supports both IPv4 and IPv6 (thanks to @abdesamie).
 - Support for both active and passive mode connections
 - Supports binary/image and ASCII transfer mode
 - Multi threaded (multiple users can transfer files at the same time)
@@ -19,7 +20,6 @@ This is a simple implementation of a FTP server in Java as a class project for C
 - If this is executed within an IDE (like Eclipse or IntelliJ IDEA), the control port likely needs to be a number larger than 1024. Java allows sockets on ports below 1024 only when the JVM is executed in super user mode (which IDEs normally don't do).
 - The number of accepted connections is not limited. This could easily be exploited to crash the server by just opening several thousands of connections until the JVM crashes.
 - This implementation can only run in Passive Mode on the same host as the client. If it needs to run on another host, the external server IP must be manually set as "myIp" in handlePasv(). This is because the Java socket implementation does not reliably return the external IP of the corresponding network device. To overcome this, one would probably have to use some kind of external API.
-- This implementation does not support IPv6.
 - No unit tests.
 - No timeouts.
 
@@ -41,9 +41,11 @@ For implementation details on the handler functions please refer to the comments
 * PORT
 * EPRT
 * MKD
+* XMKD
 * RMD
 * CWD
 * PWD
+* XPWD
 * TYPE
 * RETR
 * STOR
@@ -52,25 +54,25 @@ For implementation details on the handler functions please refer to the comments
 * FEAT
 
 
-## Examples of usage
+## Instructions
 
-These examples are based on the use of windows ftp client:
+Before you start the server, you should create a folder named `test` in the folder, where you want to start the server. These examples are based on the Windows command line ftp client:
 
-`ftp>open localhost 1025`
-
-The terminal prompt this message asking for user (comp4621) :
-
-`220 Welcome to the COMP4621 FTP-Server
+```
+ftp> open localhost 1025
+Connected to localhost.
+220 Welcome to the COMP4621 FTP-Server
 501 Unknown command
-Utilisateur (LAPTOP-0CETF771:(none)) :comp4621`
-
-Afterwards introduce the password (network)
-
-The root folder should also have a folder named 'test'.
-When connected you can use ftp commands as stated here : https://www.windows-commandline.com/windows-ftp-command-line/
+User (localhost:(none)): comp4621
+331 User name okay, need password
+Password:
+230-Welcome to HKUST
+230 User logged in successfully
+```
 
 ## Ressources used
 * https://tools.ietf.org/html/rfc959
+* https://tools.ietf.org/html/rfc2428
 * http://www.nsftools.com/tips/RawFTP.htm
 * https://cr.yp.to/ftp.html
 * http://www.mysamplecode.com/2011/12/java-multithreaded-socket-server.html

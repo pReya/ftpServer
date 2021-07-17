@@ -21,8 +21,6 @@ import java.net.Socket;
  */
 public class Worker extends Thread
 {
-    private static final String IPV4 = "1";
-    private static final String IPV6 = "2";
     /**
      *  Enable debugging output to console
      */
@@ -92,7 +90,7 @@ public class Worker extends Thread
      */
     public void run()
     {
-
+        debugOutput("Current working directory " + this.currDirectory);
         try
         {
             // Input from client
@@ -487,7 +485,6 @@ public class Worker extends Thread
         {
             filename = filename + fileSeparator + args;
         }
-    
 
         // Now get a File object, and see if the name we got exists and is a
         // directory.
@@ -960,39 +957,37 @@ public class Worker extends Thread
 
     /**
      * Helper method to parse the arguments of the EXXX commands (e.g. EPRT).
-     * EXXX commands are newer and support IPv6.The arguments
-     * get translated back to a "regular" argument.
+     * EXXX commands are newer and support IPv6. The arguments
+     * get translated back to a "regular" PRT argument.
      * @param extArg The extended argument
      * @return The regular argument
      */
 
     private String parseExtendedArguments(String extArg)
     {
+        final String IPV4 = "1";
+        final String IPV6 = "2";
+
+        // Example arg: |2|::1|58770| or |1|132.235.1.2|6275|
         String[] splitArgs = extArg.split("\\|");
-        String version = splitArgs[1];
-        if(IPV4.equals(version)){
-            return buildExtendedArgsIpV4(splitArgs);
-        }
-        else if(IPV6.equals(version)) {
-            return buildExtendedArgsIpV6(splitArgs);
-        }
-         throw new IllegalArgumentException("Unsupported IP version");
-    }
+        String ipVersion = splitArgs[1];
+        String ipAddress;
 
-    private String buildExtendedArgsIpV4(String[] args) {
-        String ipAddress = args[2].replace(',', '.');
-        int port = Integer.parseInt(args[3]);
-        int p1 = port/256;
-        int p2 = port%256;
-        return ipAddress + "," + p1 + "," + p2;
-    }
+        if(IPV4.equals(ipVersion)){
+            ipAddress = splitArgs[2].replace(',', '.');
+        }
+        else if (IPV6.equals(ipVersion)) {
+            ipAddress = splitArgs[2];
+        }
+        else {
+            throw new IllegalArgumentException("Unsupported IP version");
+        }
 
-    private String buildExtendedArgsIpV6(String[] args) {
-        String ipAddress = args[2];
-        int port = Integer.parseInt(args[3]);
+        int port = Integer.parseInt(splitArgs[3]);
         int p1 = port / 256;
         int p2 = port % 256;
         return ipAddress + "," + p1 + "," + p2;
+
     }
 
 
@@ -1008,6 +1003,4 @@ public class Worker extends Thread
         }
     }
     
-    
-
 }

@@ -20,7 +20,6 @@ This is a simple implementation of a FTP server in Java, which was built as a cl
 - If this is executed within an IDE (like Eclipse or IntelliJ IDEA), the control port likely needs to be a number larger than 1024. Java allows sockets on ports below 1024 only when the JVM is executed in super user mode (which IDEs normally won't do).
 - The number of accepted connections is not limited. This could easily be exploited to crash the server by just opening several thousands of connections until the JVM crashes.
 - If the FTP server and client are running on the same host, it can only work in Passive Mode. If it needs to run on another host, the external server IP must be manually set as "myIp" in `handlePasv()`. This is because the Java socket implementation does not reliably return the external IP of the corresponding network device. To overcome this, one would probably have to use some kind of external API.
-- This implementation does not support IPv6.
 - No tests implemented.
 - No timeouts implemented.
 

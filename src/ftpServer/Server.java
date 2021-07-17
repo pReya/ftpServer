@@ -54,7 +54,7 @@ public class Server {
       }
 
     }
-    
+
     try {
       welcomeSocket.close();
       System.out.println("Server was stopped");

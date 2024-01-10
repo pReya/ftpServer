@@ -4,14 +4,14 @@ This is a simple implementation of a FTP server in Java, which was built as a cl
 
 ## The main features of this implementation are:
 
-- Works with standard Windows/Linux/Mac terminal tools ftp, telnet and curl.
-- Supports both IPv4 and IPv6 (thanks to @abdesamie).
+- Works with standard Windows/Linux/Mac terminal tools `ftp`, `telnet` and `curl`
+- Supports both IPv4 and IPv6 (thanks to @abdesamie)
 - Support for both active and passive mode connections
 - Supports binary/image and ASCII transfer mode
 - Multi threaded (multiple users can transfer files at the same time)
 - Standard control port is 1025, standard data port is 1026
 - Default **user name is "comp4621" and password is "network"**. User name and password are not case sensitive
-- Supports extended FTP arguments (EPSV instead of PASV and EPRT instead of EPRT)
+- Supports extended FTP arguments (`EPSV` instead of `PASV` and `EPRT` instead of `PORT`)
 
 ## Problems/Todos with this implementation:
 
